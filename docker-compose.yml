@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: gym-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"   
+    volumes:
+      - ./project.sql:/repo/project.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
