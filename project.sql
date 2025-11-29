@@ -14,9 +14,9 @@ CREATE TABLE plans (
   plan_name     VARCHAR(100) NOT NULL,
   monthly_fee   DECIMAL(10,2) NOT NULL CHECK (monthly_fee >= 0),
   description   VARCHAR(255),
-  is_active     TINYINT(1) NOT NULL DEFAULT 1,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 2) Core: members
@@ -32,11 +32,11 @@ CREATE TABLE members (
   status        ENUM('active','on_hold','cancelled') NOT NULL DEFAULT 'active',
   visit_count   INT UNSIGNED NOT NULL DEFAULT 0,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_members_email (email),
-  CONSTRAINT fk_members_plan
+  UNIQUE KEY uq_members_email (email), -- Gives the constraint a fixed, readable name instead of letting MySQL auto-generate one--
+  CONSTRAINT fk_members_plan --forgein key from members to plan--
     FOREIGN KEY (plan_id) REFERENCES plans(plan_id)
-      ON UPDATE CASCADE ON DELETE SET NULL
-) ENGINE=InnoDB;
+      ON UPDATE CASCADE ON DELETE SET NULL --if a plan_id row in plan table is deleted the plan_id becames null--
+);
 
 -- ----------------------
 -- 3) Staff: trainers
@@ -50,7 +50,7 @@ CREATE TABLE trainers (
   hire_date     DATE,
   hourly_rate   DECIMAL(10,2) CHECK (hourly_rate >= 0),
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 4) Classes: gym_classes
@@ -65,12 +65,12 @@ CREATE TABLE gym_classes (
   end_time      DATETIME NOT NULL,
   difficulty    ENUM('beginner','intermediate','advanced') DEFAULT 'beginner',
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY ix_class_time (start_time),
-  CONSTRAINT fk_class_trainer
+  KEY ix_class_time (start_time), --performance optimization--
+  CONSTRAINT fk_class_trainer --foreign key from class to trainer FLAG--
     FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
-      ON UPDATE CASCADE ON DELETE RESTRICT,
+      ON UPDATE CASCADE ON DELETE RESTRICT,--cannot delete trainer_id in trainer table is trainer_id exists in gym_classes--
   CHECK (end_time > start_time)
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 5) Bookings: class_bookings
@@ -82,14 +82,14 @@ CREATE TABLE class_bookings (
   booked_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   status        ENUM('booked','cancelled','attended','no_show') NOT NULL DEFAULT 'booked',
   UNIQUE KEY uq_booking_unique (class_id, member_id),
-  KEY ix_booking_member (member_id),
-  CONSTRAINT fk_booking_class
+  KEY ix_booking_member (member_id),--FLAG--
+  CONSTRAINT fk_booking_class --foreign key from class_booking to gym_class--
     FOREIGN KEY (class_id) REFERENCES gym_classes(class_id)
       ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT fk_booking_member
     FOREIGN KEY (member_id) REFERENCES members(member_id)
       ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 6) Check-ins: check_ins
@@ -100,10 +100,10 @@ CREATE TABLE check_ins (
   check_in_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   location      VARCHAR(100),
   KEY ix_checkins_member_time (member_id, check_in_time),
-  CONSTRAINT fk_checkins_member
+  CONSTRAINT fk_checkins_member --foreign key from check_ins to members--
     FOREIGN KEY (member_id) REFERENCES members(member_id)
       ON UPDATE CASCADE ON DELETE CASCADE
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 7) Catalog: products
@@ -116,10 +116,10 @@ CREATE TABLE products (
   unit_price    DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0),
   unit_cost     DECIMAL(10,2) CHECK (unit_cost >= 0),
   stock_qty     INT NOT NULL DEFAULT 0,
-  is_active     TINYINT(1) NOT NULL DEFAULT 1,
+  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_products_sku (sku)
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 8) Orders (invoice header)
@@ -135,10 +135,10 @@ CREATE TABLE orders (
   total_amount  DECIMAL(12,2) GENERATED ALWAYS AS (subtotal + tax_amount) STORED,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_orders_member_date (member_id, order_date),
-  CONSTRAINT fk_orders_member
+  CONSTRAINT fk_orders_member --foreign key from orders to member
     FOREIGN KEY (member_id) REFERENCES members(member_id)
       ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 9) Order lines (invoice details)
@@ -148,16 +148,16 @@ CREATE TABLE order_items (
   order_id      INT UNSIGNED NOT NULL,
   product_id    INT UNSIGNED NOT NULL,
   description   VARCHAR(200),
-  qty           INT UNSIGNED NOT NULL DEFAULT 1,
+  qty           INT UNSIGNED NOT NULL DEFAULT 1,--FLAG--
   unit_price    DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0),
   line_total    DECIMAL(12,2) GENERATED ALWAYS AS (qty * unit_price) STORED,
-  CONSTRAINT fk_items_order
+  CONSTRAINT fk_items_order --forgein key form order_items to orders--
     FOREIGN KEY (order_id) REFERENCES orders(order_id)
       ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT fk_items_product
+  CONSTRAINT fk_items_product --forgein key from order_items to products--
     FOREIGN KEY (product_id) REFERENCES products(product_id)
       ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB;
+);
 
 -- ----------------------
 -- 10) Reviews (classes or trainers)
@@ -168,7 +168,7 @@ CREATE TABLE reviews (
   target_type   ENUM('class','trainer') NOT NULL,
   class_id      INT UNSIGNED NULL,
   trainer_id    INT UNSIGNED NULL,
-  rating        TINYINT UNSIGNED NOT NULL,
+  rating        INT UNSIGNED NOT NULL,
   comment       VARCHAR(400),
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -176,18 +176,18 @@ CREATE TABLE reviews (
   UNIQUE KEY uq_review_unique_class   (member_id, target_type, class_id),
   UNIQUE KEY uq_review_unique_trainer (member_id, target_type, trainer_id),
 
-  CONSTRAINT fk_review_member
+  CONSTRAINT fk_review_member --foreign key from reviews to member--
     FOREIGN KEY (member_id) REFERENCES members(member_id)
       ON UPDATE CASCADE ON DELETE CASCADE,
-  CONSTRAINT fk_review_class
+  CONSTRAINT fk_review_class --foreign key from reviews to gym_classes--
     FOREIGN KEY (class_id) REFERENCES gym_classes(class_id)
       ON UPDATE CASCADE ON DELETE SET NULL,
-  CONSTRAINT fk_review_trainer
+  CONSTRAINT fk_review_trainer --foreigen key from reviews to trainers--
     FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
       ON UPDATE CASCADE ON DELETE SET NULL,
 
   CHECK (rating BETWEEN 1 AND 5)
-) ENGINE=InnoDB;
+);
 
 
 -- ----------------------
@@ -204,6 +204,7 @@ CREATE TABLE log_events (
 ) ENGINE=InnoDB;
 
 -- Handy indexes
+--FLAG--
 CREATE INDEX ix_products_active ON products(is_active);
 CREATE INDEX ix_reviews_member_time ON reviews(member_id, created_at);
 -- date-only index helps monthly revenue query
