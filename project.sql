@@ -203,6 +203,7 @@ CREATE TABLE log_events (
   details       JSON
 ) ENGINE=InnoDB;
 
+-- We are using this index to improve lookup performance in the table, making queries faster and more efficient
 -- Handy indexes
 --FLAG--
 CREATE INDEX ix_products_active ON products(is_active);
@@ -228,6 +229,7 @@ CREATE INDEX ix_bookings_class_status ON class_bookings(class_id, status);
    =========================================================== */
 
 -- T1: Increment visit_count on member check-in
+-- When a member checks in (check_ins), it updates the member’s visit_count
 DROP TRIGGER IF EXISTS trg_checkins_after_insert;
 DELIMITER //
 CREATE TRIGGER trg_checkins_after_insert
@@ -241,6 +243,8 @@ END//
 DELIMITER ;
 
 -- T2: Decrement stock for Merch lines; write log entry
+-- When a new order item is added (order_items), it checks if it's merchandise (merch). If yes, it updates the stock quantity in products
+-- Every time stock is decreased, it logg the action in the log_events
 DROP TRIGGER IF EXISTS trg_order_items_after_insert;
 DELIMITER //
 CREATE TRIGGER trg_order_items_after_insert
@@ -267,6 +271,9 @@ DELIMITER ;
 /* ===========================================================
    SEED DATA (covers 2024–2025)
    =========================================================== */
+
+-- Seed data for initial setup
+-- These entries provide default data for the application, allowing it to start with meaningful values
 
 -- Plans
 INSERT INTO plans (plan_name, monthly_fee, description) VALUES
@@ -359,6 +366,13 @@ INSERT INTO order_items (order_id, product_id, description, qty, unit_price) VAL
 (5,1,'Gym T-Shirt',2,20.00);
 
 -- Compute order subtotals & tax (e.g., 23% VAT), total is generated column
+-- For each order, we sum the total of its items (line_total) from the order_items table to get the subtotal
+-- Then we compute the tax amount (23% VAT) based on that subtotal and store both values in the orders table
+-- SQL_SAFE_UPDATES is temporarily disabled to allow updating orders using a JOIN
+-- Order totals and tax are calculated from the related order_items and stored in the orders table
+
+SET SQL_SAFE_UPDATES = 0;
+
 UPDATE orders o
 JOIN (
   SELECT order_id, SUM(line_total) AS subtotal
@@ -366,6 +380,7 @@ JOIN (
 ) s ON s.order_id = o.order_id
 SET o.subtotal = s.subtotal,
     o.tax_amount = ROUND(s.subtotal * 0.23, 2);
+SET SQL_SAFE_UPDATES = 1;
 
 /* ===========================================================
    EXTRA TRANSACTIONS to reach ~30 order_items rows
@@ -384,6 +399,9 @@ SET @p_basic := (SELECT unit_price FROM products WHERE product_id=@pid_basic);
 SET @p_prem  := (SELECT unit_price FROM products WHERE product_id=@pid_prem);
 SET @p_class := (SELECT unit_price FROM products WHERE product_id=@pid_class);
 
+-- Create a new order for member João (2024-12-15) including a T-shirt and a Drop-in Class
+-- Product IDs and prices are stored in variables to ensure consistency and avoid hardcoding
+-- LAST_INSERT_ID() captures the new order_id so the order_items can be linked correctly
 -- O6: 2024-12-15 (João) T-shirt + drop-in
 INSERT INTO orders (member_id, order_date, status, payment_method)
 VALUES (2,'2024-12-15 12:00:00','paid','card');
@@ -501,6 +519,8 @@ SET o.subtotal = s.subtotal,
 
 
 -- Reviews consistency validation triggers
+-- These triggers make sure that a review is linked either to a class or a trainer, never both or neither.
+-- They prevent invalid data in the reviews table.
 DROP TRIGGER IF EXISTS trg_reviews_bi_validate;
 DROP TRIGGER IF EXISTS trg_reviews_bu_validate;
 DELIMITER //
@@ -556,6 +576,8 @@ SELECT
 FROM orders o
 JOIN members m ON m.member_id = o.member_id;
 
+SELECT * FROM invoice_head_v;
+
 DROP VIEW IF EXISTS invoice_lines_v;
 CREATE VIEW invoice_lines_v AS
 SELECT
@@ -569,6 +591,9 @@ SELECT
   oi.line_total
 FROM order_items oi
 JOIN products p ON p.product_id = oi.product_id;
+
+SELECT * FROM invoice_lines_v;
+
 
 
 /* ===========================================================
