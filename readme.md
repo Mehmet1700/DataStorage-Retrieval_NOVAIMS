@@ -8,7 +8,7 @@ The deliverable is a single, reproducible SQL file (`project.sql`) plus a minima
 Group Members (matriculation numbers):
 
 - Fransisca 
-- Kiki
+- Kika (20240266)
 - Adriana (20250530)
 - Carlota (20250383)
 - Mehmet (20250344)
