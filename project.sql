@@ -1,5 +1,13 @@
 -- ============================================
--- Gym & Classes DB — base schema (tables only)
+-- Gym & Classes DB — base schema 
+
+-- Project by:
+-- Adriana Gregório, nr 20250530
+-- Carlota Pires, nr 20250383
+-- Francisca Calçoa, nr 20240266
+-- Francisca Martins, nr 20250347
+-- Mehmet ,nr 20250344
+
 -- ============================================
 
 DROP DATABASE IF EXISTS gym_mgmt;
@@ -14,7 +22,7 @@ CREATE TABLE plans (
   plan_name     VARCHAR(100) NOT NULL,
   monthly_fee   DECIMAL(10,2) NOT NULL CHECK (monthly_fee >= 0),
   description   VARCHAR(255),
-  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  is_active     BOOLEAN NOT NULL,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -29,14 +37,17 @@ CREATE TABLE members (
   email         VARCHAR(160) NOT NULL,
   phone         VARCHAR(40),
   start_date    DATE,
-  status        ENUM('active','on_hold','cancelled') NOT NULL DEFAULT 'active',
-  visit_count   INT UNSIGNED NOT NULL DEFAULT 0,
+  status        ENUM('active','on_hold','cancelled') NOT NULL,
+  visit_count   INT UNSIGNED NOT NULL,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_members_email (email), -- Gives the constraint a fixed, readable name instead of letting MySQL auto-generate one --
   CONSTRAINT fk_members_plan -- forgein key from members to plan --
     FOREIGN KEY (plan_id) REFERENCES plans(plan_id)
       ON UPDATE CASCADE ON DELETE SET NULL -- if a plan_id row in plan table is deleted the plan_id becames null --
 );
+
+
+
 
 -- ----------------------
 -- 3) Staff: trainers
@@ -49,7 +60,8 @@ CREATE TABLE trainers (
   phone         VARCHAR(40),
   hire_date     DATE,
   hourly_rate   DECIMAL(10,2) CHECK (hourly_rate >= 0),
-  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_members_email (email)
 );
 
 -- ----------------------
@@ -60,13 +72,13 @@ CREATE TABLE gym_classes (
   class_name    VARCHAR(120) NOT NULL,
   trainer_id    INT UNSIGNED NOT NULL,
   room          VARCHAR(60),
-  capacity      INT UNSIGNED NOT NULL DEFAULT 20,
+  capacity      INT UNSIGNED NOT NULL,
   start_time    DATETIME NOT NULL,
   end_time      DATETIME NOT NULL,
-  difficulty    ENUM('beginner','intermediate','advanced') DEFAULT 'beginner',
+  difficulty    ENUM('beginner','intermediate','advanced') ,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY ix_class_time (start_time), -- performance optimization --
-  CONSTRAINT fk_class_trainer -- foreign key from class to trainer FLAG --
+  CONSTRAINT fk_class_trainer -- foreign key from class to trainer --
     FOREIGN KEY (trainer_id) REFERENCES trainers(trainer_id)
       ON UPDATE CASCADE ON DELETE RESTRICT,-- cannot delete trainer_id in trainer table is trainer_id exists in gym_classes --
   CHECK (end_time > start_time)
@@ -80,7 +92,7 @@ CREATE TABLE class_bookings (
   class_id      INT UNSIGNED NOT NULL,
   member_id     INT UNSIGNED NOT NULL,
   booked_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  status        ENUM('booked','cancelled','attended','no_show') NOT NULL DEFAULT 'booked',
+  status        ENUM('booked','cancelled','attended','no_show') NOT NULL ,
   UNIQUE KEY uq_booking_unique (class_id, member_id),
   KEY ix_booking_member (member_id),-- FLAG --
   CONSTRAINT fk_booking_class -- foreign key from class_booking to gym_class --
@@ -115,8 +127,8 @@ CREATE TABLE products (
   category      ENUM('Merch','Membership','Class') NOT NULL,
   unit_price    DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0),
   unit_cost     DECIMAL(10,2) CHECK (unit_cost >= 0),
-  stock_qty     INT NOT NULL DEFAULT 0,
-  is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+  stock_qty     INT NOT NULL,
+  is_active     BOOLEAN NOT NULL,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_products_sku (sku)
 );
@@ -128,8 +140,8 @@ CREATE TABLE orders (
   order_id      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   member_id     INT UNSIGNED NOT NULL,
   order_date    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  status        ENUM('new','paid','cancelled') NOT NULL DEFAULT 'new',
-  payment_method ENUM('cash','card','online') DEFAULT 'card',
+  status        ENUM('new','paid','cancelled') NOT NULL,
+  payment_method ENUM('cash','card','online') ,
   subtotal      DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   tax_amount    DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   total_amount  DECIMAL(12,2) GENERATED ALWAYS AS (subtotal + tax_amount) STORED,
@@ -148,7 +160,7 @@ CREATE TABLE order_items (
   order_id      INT UNSIGNED NOT NULL,
   product_id    INT UNSIGNED NOT NULL,
   description   VARCHAR(200),
-  qty           INT UNSIGNED NOT NULL DEFAULT 1,-- FLAG --
+  qty           INT UNSIGNED NOT NULL ,
   unit_price    DECIMAL(10,2) NOT NULL CHECK (unit_price >= 0),
   line_total    DECIMAL(12,2) GENERATED ALWAYS AS (qty * unit_price) STORED,
   CONSTRAINT fk_items_order -- forgein key form order_items to orders --
@@ -201,11 +213,12 @@ CREATE TABLE log_events (
   table_name    VARCHAR(60)  NOT NULL,
   record_id     VARCHAR(60)  NOT NULL,  -- affected PK value
   details       JSON
-) ENGINE=InnoDB;
+);
 
 -- We are using this index to improve lookup performance in the table, making queries faster and more efficient
 -- Handy indexes
---FLAG--
+
+-- FLAG--
 CREATE INDEX ix_products_active ON products(is_active);
 CREATE INDEX ix_reviews_member_time ON reviews(member_id, created_at);
 -- date-only index helps monthly revenue query
@@ -231,7 +244,7 @@ CREATE INDEX ix_bookings_class_status ON class_bookings(class_id, status);
 -- T1: Increment visit_count on member check-in
 -- When a member checks in (check_ins), it updates the member’s visit_count
 DROP TRIGGER IF EXISTS trg_checkins_after_insert;
-DELIMITER //
+DELIMITER $$
 CREATE TRIGGER trg_checkins_after_insert
 AFTER INSERT ON check_ins
 FOR EACH ROW
@@ -239,14 +252,21 @@ BEGIN
   UPDATE members
      SET visit_count = visit_count + 1
    WHERE member_id = NEW.member_id;
-END//
+END $$
 DELIMITER ;
+
+-- Prove --
+-- select member_id , first_name, visit_count
+-- From gym_mgmt.members Where member_id=1;
+
+-- INSERT INTO gym_mgmt.check_ins (member_id, check_in_time, location) VALUES
+-- (1,'2025-06-15 17:55:00','Front Desk');
 
 -- T2: Decrement stock for Merch lines; write log entry
 -- When a new order item is added (order_items), it checks if it's merchandise (merch). If yes, it updates the stock quantity in products
 -- Every time stock is decreased, it logg the action in the log_events
 DROP TRIGGER IF EXISTS trg_order_items_after_insert;
-DELIMITER //
+DELIMITER $$
 CREATE TRIGGER trg_order_items_after_insert
 AFTER INSERT ON order_items
 FOR EACH ROW
@@ -264,8 +284,22 @@ BEGIN
     VALUES (CURRENT_USER(), 'STOCK_DECREMENT', 'products', NEW.product_id,
             JSON_OBJECT('order_id', NEW.order_id, 'qty', NEW.qty, 'order_item_id', NEW.order_item_id));
   END IF;
-END//
+END $$
 DELIMITER ;
+
+-- prove --
+-- select *
+-- from gym_mgmt.products
+-- ;
+
+-- select *
+-- from gym_mgmt.log_events;
+
+-- INSERT INTO gym_mgmt.order_items (order_id, product_id, description, qty, unit_price) VALUES
+-- (1,4,'test 1',10,30.00);
+
+-- select *
+-- from gym_mgmt.order_items;
 
 
 /* ===========================================================
@@ -276,10 +310,10 @@ DELIMITER ;
 -- These entries provide default data for the application, allowing it to start with meaningful values
 
 -- Plans
-INSERT INTO plans (plan_name, monthly_fee, description) VALUES
-('Basic',    30.00, 'Access gym floor'),
-('Standard', 45.00, 'Gym + 2 classes/month'),
-('Premium',  60.00, 'All access + unlimited classes');
+INSERT INTO plans (plan_name, monthly_fee, description, is_active) VALUES
+('Basic',    30.00, 'Access gym floor', True),
+('Standard', 45.00, 'Gym + 2 classes/month', True),
+('Premium',  60.00, 'All access + unlimited classes',True);
 
 -- Trainers
 INSERT INTO trainers (first_name, last_name, email, hire_date, hourly_rate) VALUES
@@ -288,21 +322,21 @@ INSERT INTO trainers (first_name, last_name, email, hire_date, hourly_rate) VALU
 ('Aisha','Khan','aisha.khan@gym.local','2024-02-10',24.00);
 
 -- Members
-INSERT INTO members (plan_id, first_name, last_name, email, phone, start_date) VALUES
-(1,'Ana','Costa','ana.costa@example.com','+351-910000001','2024-01-10'),
-(2,'João','Pereira','joao.pereira@example.com','+351-910000002','2024-05-02'),
-(2,'Marta','Oliveira','marta.oliveira@example.com','+351-910000003','2024-07-21'),
-(3,'Tiago','Santos','tiago.santos@example.com','+351-910000004','2025-02-11'),
-(1,'Inês','Ribeiro','ines.ribeiro@example.com','+351-910000005','2024-11-08'),
-(3,'Ricardo','Ferreira','ricardo.ferreira@example.com','+351-910000006','2025-04-18');
+INSERT INTO members (plan_id, first_name, last_name, email, phone, start_date, visit_count, status) VALUES
+(1,'Ana','Costa','ana.costa@example.com','+351-910000001','2024-01-10', 0, 'active'),
+(2,'João','Pereira','joao.pereira@example.com','+351-910000002','2024-05-02', 0, 'active'),
+(2,'Marta','Oliveira','marta.oliveira@example.com','+351-910000003','2024-07-21', 0, 'active'),
+(3,'Tiago','Santos','tiago.santos@example.com','+351-910000004','2025-02-11', 0, 'active'),
+(1,'Inês','Ribeiro','ines.ribeiro@example.com','+351-910000005','2024-11-08', 0, 'active'),
+(3,'Ricardo','Ferreira','ricardo.ferreira@example.com','+351-910000006','2025-04-18', 0, 'active');
 
 -- Products (Merch + Membership + Class)
-INSERT INTO products (sku, product_name, category, unit_price, unit_cost, stock_qty) VALUES
-('M-TEE',       'Gym T-Shirt',        'Merch',       20.00,  8.00, 100),
-('M-BOT',       'Water Bottle',       'Merch',       12.00,  4.00,  50),
-('MEM-BASIC',   'Monthly Basic Plan', 'Membership',  30.00,  0.00,   0),
-('MEM-PREM',    'Monthly Premium',    'Membership',  60.00,  0.00,   0),
-('CLS-DROPIN',  'Drop-in Class',      'Class',       10.00,  0.00,   0);
+INSERT INTO products (sku, product_name, category, unit_price, unit_cost, stock_qty, is_active) VALUES
+('M-TEE',       'Gym T-Shirt',        'Merch',       20.00,  8.00, 100, True),
+('M-BOT',       'Water Bottle',       'Merch',       12.00,  4.00,  50, True),
+('MEM-BASIC',   'Monthly Basic Plan', 'Membership',  30.00,  0.00,   0, True),
+('MEM-PREM',    'Monthly Premium',    'Membership',  60.00,  0.00,   0, True),
+('CLS-DROPIN',  'Drop-in Class',      'Class',       10.00,  0.00,   0, True);
 
 -- Classes across two years (2024 & 2025)
 INSERT INTO gym_classes (class_name, trainer_id, room, capacity, start_time, end_time, difficulty) VALUES
@@ -612,13 +646,13 @@ LIMIT 5;
 -- 2) Monthly revenue trend (two years)
 SELECT DATE_FORMAT(order_date, '%Y-%m') AS ym, SUM(total_amount) AS revenue
 FROM orders
-GROUP BY ym ORDER BY ym;
+GROUP BY ym ORDER BY ym; -- FLAG
 
 -- 3) Product mix: revenue share by category
 SELECT p.category, SUM(oi.line_total) AS revenue
 FROM order_items oi
 JOIN products p ON p.product_id = oi.product_id
-GROUP BY p.category
+GROUP BY p.category -- FLAG
 ORDER BY revenue DESC;
 
 -- 4) Trainer ratings (avg stars)
@@ -637,5 +671,5 @@ SELECT gc.class_id, gc.class_name,
        ROUND(100*SUM(cb.status='attended')/NULLIF(SUM(cb.status IN ('booked','attended','no_show')),0),1) AS attend_rate_pct
 FROM gym_classes gc
 LEFT JOIN class_bookings cb ON cb.class_id = gc.class_id
-GROUP BY gc.class_id, gc.class_name
+GROUP BY gc.class_id, gc.class_name -- FLAG
 ORDER BY attend_rate_pct DESC;
