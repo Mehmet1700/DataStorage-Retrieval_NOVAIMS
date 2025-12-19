@@ -4,6 +4,15 @@ Comprehensive relational database for a Gym & Classes business. The project is d
 
 The deliverable is a single, reproducible SQL file (`project.sql`) plus a minimal Docker Compose setup to run MySQL 8 locally.
 
+
+Group Members (matriculation numbers):
+
+- Fransisca (20250347)
+- Francisca Calçoa (20240266)
+- Adriana (20250530)
+- Carlota (20250383)
+- Mehmet (20250344)
+
 ---
 
 ## Table of Contents
